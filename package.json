@@ -1,0 +1,37 @@
+{
+  "name": "estonian-reading-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "asr:export-bpe-vocab": "node scripts/export-bpe-vocab.mjs",
+    "test:pace": "node --test scripts/pace-predictor.test.mjs",
+    "test:probabilistic": "node --test scripts/probabilistic-alignment.test.mjs",
+    "test:timing": "node --test scripts/timing-aware-alignment.test.mjs",
+    "test:asr-decoder-config": "node --test scripts/asr-decoder-config.test.mjs"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^1.4.1",
+    "@vercel/speed-insights": "^1.1.0",
+    "lucide-react": "^0.468.0",
+    "next": "15.5.9",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.14",
+    "eslint": "^8",
+    "eslint-config-next": "15.0.0",
+    "playwright": "^1.61.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
