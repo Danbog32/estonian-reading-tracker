@@ -1,17 +1,14 @@
 import type { Config } from "tailwindcss";
-const { heroui } = require("@heroui/react");
-const colors = require("tailwindcss/colors");
 
 const config: Config = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     screens: {
-      xs: "475px", // Add custom xs breakpoint
+      xs: "475px",
       ...require("tailwindcss/defaultTheme").screens,
     },
     extend: {
@@ -23,6 +20,6 @@ const config: Config = {
     },
   },
   darkMode: "class",
-  plugins: [heroui()],
+  plugins: [],
 };
 export default config;
