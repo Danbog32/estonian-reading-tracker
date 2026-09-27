@@ -14,23 +14,12 @@ import {
 } from "./pacePredictor";
 import type { PacePredictorState } from "./pacePredictor";
 import type { AsrEventPayload, TranscriptBlock, TranscriptUpdateDetail } from "./types";
-import { createVoiceTimeline } from "./voiceTimeline";
-import type { VoiceTimeline } from "./voiceTimeline";
+import { createPaceVad, ONNX_WORKER_VERSION } from "./paceVad";
+import type { PaceVad } from "./paceVad";
 
 const TARGET_SAMPLE_RATE = 16000;
 const CHUNK_DURATION_MS = 100;
 const CHUNK_SIZE = Math.max(1, Math.round((TARGET_SAMPLE_RATE * CHUNK_DURATION_MS) / 1000));
-
-// Earlier builds served /onnx scripts as immutable, so browsers can hold stale
-// workers for a year. A new query string forces a fresh copy.
-const ONNX_WORKER_VERSION = "2026-09-15";
-const VAD_INIT_TIMEOUT_MS = 20000;
-
-// Short silence so pauses between words register; EestiASR segments on 1.0 s.
-const PACE_VAD_CONFIG = {
-  emitVoiceFlags: true,
-  sileroVad: { minSilenceDuration: 0.15, minSpeechDuration: 0.1 },
-};
 
 type FileControllerStatus =
   | "idle"
@@ -74,14 +63,6 @@ interface WorkerPartialFinalMessage {
 }
 
 type WorkerMessage = WorkerPartialFinalMessage | { type: string };
-
-interface VoiceFlagsMessage {
-  type: "voice_flags";
-  generation: number;
-  startSample: number;
-  windowSize: number;
-  flags: Uint8Array;
-}
 
 const EMPTY_DETAIL: TranscriptUpdateDetail = {
   blocks: [],
@@ -278,11 +259,7 @@ export function useAudioFileAlignmentController({
   const latestDetailRef = useRef<TranscriptUpdateDetail>(EMPTY_DETAIL);
   const referenceWordsRef = useRef(referenceWords);
   referenceWordsRef.current = referenceWords;
-  const vadWorkerRef = useRef<Worker | null>(null);
-  const vadReadyRef = useRef(false);
-  const vadGenerationRef = useRef(0);
-  const vadNeedsResetRef = useRef(true);
-  const voiceTimelineRef = useRef<VoiceTimeline | null>(null);
+  const paceVadRef = useRef<PaceVad | null>(null);
   const paceRef = useRef<PacePredictorState>(INITIAL_PACE_PREDICTOR_STATE);
 
   const [modeState, setModeState] = useState<FileModeState>({
@@ -302,18 +279,12 @@ export function useAudioFileAlignmentController({
   // null until the VAD worker reports in; false when it cannot send voice flags.
   const [isPaceAvailable, setIsPaceAvailable] = useState<boolean | null>(null);
 
-  const getVoiceTimeline = useCallback(() => {
-    voiceTimelineRef.current ??= createVoiceTimeline(TARGET_SAMPLE_RATE);
-    return voiceTimelineRef.current;
-  }, []);
-
   const updatePace = useCallback(
     (
       matcher: TimingAwareAlignmentState,
       message: WorkerPartialFinalMessage | null,
       nowSec: number,
     ) => {
-      const timeline = getVoiceTimeline();
       const nextPace = predictReadingPosition(paceRef.current, {
         referenceWords: referenceWordsRef.current,
         matcherIndex: matcher.currentWordIndex,
@@ -327,13 +298,14 @@ export function useAudioFileAlignmentController({
               tokenLogProbabilities: message.tokenLogProbabilities,
             }
           : null,
-        voicedSeconds: (fromSec, toSec) => timeline.voicedSeconds(fromSec, toSec),
+        voicedSeconds: (fromSec, toSec) =>
+          paceVadRef.current?.voicedSeconds(fromSec, toSec) ?? 0,
         tokenDelaySec: ASR_TOKEN_LATENCY_SEC,
       });
       paceRef.current = nextPace;
       setPace(nextPace);
     },
-    [getVoiceTimeline],
+    [],
   );
 
   const ensureWorkerReady = useCallback(() => {
@@ -348,44 +320,7 @@ export function useAudioFileAlignmentController({
     const worker = new Worker(`/onnx/asr-worker.js?v=${ONNX_WORKER_VERSION}`);
     workerRef.current = worker;
 
-    // A second VAD feeds the pace predictor. Alignment still works without it.
-    const vadWorker = new Worker(`/onnx/vad-worker.js?v=${ONNX_WORKER_VERSION}`);
-    vadWorkerRef.current = vadWorker;
-    vadWorker.onmessage = (
-      event: MessageEvent<VoiceFlagsMessage | { type: string; voiceFlags?: boolean }>,
-    ) => {
-      const message = event.data;
-      if (message.type === "initialized") {
-        const supportsFlags = "voiceFlags" in message && message.voiceFlags === true;
-        vadReadyRef.current = supportsFlags;
-        setIsPaceAvailable(supportsFlags);
-        return;
-      }
-      if (message.type === "error") {
-        setIsPaceAvailable(false);
-        return;
-      }
-      if (message.type !== "voice_flags") return;
-      const flagsMessage = message as VoiceFlagsMessage;
-      if (flagsMessage.generation !== vadGenerationRef.current) return;
-      getVoiceTimeline().append(
-        flagsMessage.startSample,
-        flagsMessage.windowSize,
-        flagsMessage.flags,
-      );
-    };
-    // A worker that fails to load or never reports in leaves pace unavailable
-    // instead of waiting for a measurement forever.
-    vadWorker.onerror = () => setIsPaceAvailable(false);
-    const vadInitTimeout = window.setTimeout(() => {
-      if (!vadReadyRef.current) setIsPaceAvailable(false);
-    }, VAD_INIT_TIMEOUT_MS);
-    vadWorker.addEventListener("message", (event: MessageEvent<{ type?: string }>) => {
-      if (event.data?.type === "initialized" || event.data?.type === "error") {
-        window.clearTimeout(vadInitTimeout);
-      }
-    });
-    vadWorker.postMessage({ type: "init", config: PACE_VAD_CONFIG });
+    paceVadRef.current = createPaceVad(setIsPaceAvailable);
 
     worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       const message = event.data;
@@ -451,7 +386,7 @@ export function useAudioFileAlignmentController({
     });
 
     return workerReadyPromiseRef.current;
-  }, [getVoiceTimeline, updatePace]);
+  }, [updatePace]);
 
   const stopFeeding = useCallback(() => {
     if (feedRafRef.current !== null) {
@@ -472,17 +407,7 @@ export function useAudioFileAlignmentController({
       const end = Math.min(start + CHUNK_SIZE, targetSample, samples.length);
       const chunk = samples.slice(start, end);
 
-      const vadWorker = vadWorkerRef.current;
-      if (vadWorker && vadReadyRef.current) {
-        if (vadNeedsResetRef.current) {
-          vadGenerationRef.current += 1;
-          vadWorker.postMessage({ type: "reset", generation: vadGenerationRef.current });
-          getVoiceTimeline().reset(start / TARGET_SAMPLE_RATE);
-          vadNeedsResetRef.current = false;
-        }
-        const vadChunk = samples.slice(start, end);
-        vadWorker.postMessage({ type: "audio", samples: vadChunk }, [vadChunk.buffer]);
-      }
+      paceVadRef.current?.feed(chunk, end / TARGET_SAMPLE_RATE);
 
       worker.postMessage(
         {
@@ -498,7 +423,7 @@ export function useAudioFileAlignmentController({
 
       lastFedSampleRef.current = end;
     }
-  }, [getVoiceTimeline]);
+  }, []);
 
   const feedLoop = useCallback(() => {
     if (!isPlayingRef.current) return;
@@ -527,7 +452,7 @@ export function useAudioFileAlignmentController({
     alignmentRef.current = INITIAL_TIMING_AWARE_ALIGNMENT_STATE;
     setDetail(EMPTY_DETAIL);
     setAlignment(INITIAL_TIMING_AWARE_ALIGNMENT_STATE);
-    vadNeedsResetRef.current = true;
+    paceVadRef.current?.reset();
     paceRef.current = INITIAL_PACE_PREDICTOR_STATE;
     setPace(INITIAL_PACE_PREDICTOR_STATE);
   }, []);
@@ -790,8 +715,7 @@ export function useAudioFileAlignmentController({
       try {
         workerRef.current?.postMessage({ type: "free" });
         workerRef.current?.terminate();
-        vadWorkerRef.current?.postMessage({ type: "free" });
-        vadWorkerRef.current?.terminate();
+        paceVadRef.current?.dispose();
       } catch (_) {
         // Ignore worker teardown errors.
       }

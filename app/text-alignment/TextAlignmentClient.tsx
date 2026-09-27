@@ -26,6 +26,7 @@ import type {
   TranscriptUpdateDetail,
 } from "./types";
 import { useAudioFileAlignmentController } from "./useAudioFileAlignmentController";
+import { useMicPacePredictor } from "./useMicPacePredictor";
 
 type SourceMode = "microphone" | "file";
 
@@ -91,12 +92,12 @@ const translations = {
     changeText: "Change text",
     chooseFile: "Choose file",
     replaceFile: "Replace file",
-    hintNeedText: "Add the text that will be read.",
-    hintNeedFile: "Choose an audio file to begin.",
-    hintNeedModel: "Loading the speech model, one moment.",
-    hintReadyMic: "Press Start, then begin reading.",
-    hintReadyFile: "Press Play to follow the recording.",
-    hintRunning: "Following along. The lit word is where the reader is.",
+    hintNeedText: "Add the text that will be read",
+    hintNeedFile: "Choose an audio file to begin",
+    hintNeedModel: "Loading the speech model, one moment",
+    hintReadyMic: "Press Start, then begin reading",
+    hintReadyFile: "Press Play to follow the recording",
+    hintRunning: "The lit word is where the reader is",
     resetTitle: "Clear what has been recognised so far",
   },
   et: {
@@ -158,12 +159,12 @@ const translations = {
     changeText: "Muuda teksti",
     chooseFile: "Vali fail",
     replaceFile: "Vaheta fail",
-    hintNeedText: "Lisa tekst, mida loetakse.",
-    hintNeedFile: "Alustamiseks vali helifail.",
-    hintNeedModel: "Laen kõnemudelit, hetk aega.",
-    hintReadyMic: "Vajuta Alusta ja hakka lugema.",
-    hintReadyFile: "Vajuta Esita, et salvestust jälgida.",
-    hintRunning: "Jälgin teksti. Esile tõstetud sõna on lugeja koht.",
+    hintNeedText: "Lisa tekst, mida loetakse",
+    hintNeedFile: "Alustamiseks vali helifail",
+    hintNeedModel: "Laen kõnemudelit, hetk aega",
+    hintReadyMic: "Vajuta Alusta ja hakka lugema",
+    hintReadyFile: "Vajuta Esita, et salvestust jälgida",
+    hintRunning: "Esile tõstetud sõna on lugeja koht",
     resetTitle: "Kustuta seni tuvastatu",
   },
 } as const;
@@ -352,11 +353,20 @@ export default function TextAlignmentClient() {
     activeAsrEvent.finalText ||
     "";
 
-  // Pace prediction runs on uploaded audio only; the microphone path has no source clock yet.
-  const isPaceActive = sourceMode === "file" && paceEnabled;
+  const micPace = useMicPacePredictor({
+    referenceWords,
+    alignment: micAlignment,
+    asrEvent: micAsrEvent,
+    isRecording,
+    enabled: sourceMode === "microphone" && paceEnabled,
+  });
+  const isPaceActive = paceEnabled;
+  const activePace = sourceMode === "file" ? fileController.pace : micPace.pace;
+  const isActivePaceAvailable =
+    sourceMode === "file" ? fileController.isPaceAvailable : micPace.isPaceAvailable;
   // The matcher points past the text once the last word matches; keep that word lit.
   const highlightedWordIndex = Math.min(
-    isPaceActive ? fileController.pace.predictedIndex : activeAlignment.currentWordIndex,
+    isPaceActive ? activePace.predictedIndex : activeAlignment.currentWordIndex,
     Math.max(referenceWords.length - 1, 0),
   );
   const isPredictedAhead =
@@ -379,7 +389,7 @@ export default function TextAlignmentClient() {
   latestHighlightRef.current = {
     wordIndex: highlightedWordIndex,
     paceEnabled: isPaceActive,
-    paceSecPerLetter: fileController.pace.paceSecPerUnit,
+    paceSecPerLetter: activePace.paceSecPerUnit,
   };
   latestAsrTextRef.current = activeAsrText;
   const fileStatusLabel =
@@ -423,6 +433,7 @@ export default function TextAlignmentClient() {
     }
 
     document.getElementById("clearBtn")?.click();
+    micPace.reset();
     setMicTranscriptBlocks([]);
     setMicCombinedTranscriptText("");
     setMicAsrEvent({ type: "reset" });
@@ -556,14 +567,14 @@ export default function TextAlignmentClient() {
                     </span>
                     <span className="tabular-nums">
                       {t.paceShort}{" "}
-                      {fileController.isPaceAvailable === false ? (
+                      {isActivePaceAvailable === false ? (
                         <span className="text-amber-200/90">{t.paceUnavailable}</span>
-                      ) : fileController.pace.paceSecPerUnit === null ? (
+                      ) : activePace.paceSecPerUnit === null ? (
                         t.paceMeasuring
                       ) : (
                         <>
                           <span className="font-semibold text-white/90">
-                            {Math.round(fileController.pace.paceSecPerUnit * 1000)}
+                            {Math.round(activePace.paceSecPerUnit * 1000)}
                           </span>{" "}
                           {t.msPerLetter}
                         </>
@@ -689,25 +700,6 @@ export default function TextAlignmentClient() {
                 {formatSeconds(fileController.modeState.currentTimeSec)} /{" "}
                 {formatSeconds(fileController.modeState.durationSec)}
               </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={paceEnabled}
-                onClick={() => setPaceEnabled((value) => !value)}
-                className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
-                  paceEnabled
-                    ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-200"
-                    : "border-white/10 text-white/55 hover:text-white/85"
-                }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    paceEnabled ? "bg-emerald-300" : "bg-white/30"
-                  }`}
-                />
-                <span className="hidden sm:inline">{t.pacePrediction}</span>
-              </button>
             </div>
           )}
 
@@ -755,7 +747,28 @@ export default function TextAlignmentClient() {
               </label>
             )}
 
-            <p className="ml-auto hidden text-right text-xs text-white/45 md:block">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={paceEnabled}
+              onClick={() => setPaceEnabled((value) => !value)}
+              title={t.pacePrediction}
+              className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
+                paceEnabled
+                  ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-200"
+                  : "border-white/10 text-white/55 hover:text-white/85"
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${
+                  paceEnabled ? "bg-emerald-300" : "bg-white/30"
+                }`}
+              />
+              {t.paceShort}
+            </button>
+
+            <p className="ml-auto mr-3 hidden text-right text-xs text-white/45 md:block">
               {actionHint}
             </p>
 
@@ -764,10 +777,10 @@ export default function TextAlignmentClient() {
               onClick={startAction}
               disabled={primaryAction.disabled || needsSetup}
               title={actionHint}
-              className={`ml-auto inline-flex h-10 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:ml-0 ${
+              className={`ml-auto inline-flex h-10 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 md:ml-0 ${
                 primaryAction.danger
-                  ? "bg-red-500 text-white hover:bg-red-400 focus-visible:ring-red-400"
-                  : "bg-emerald-400 text-black hover:bg-emerald-300 focus-visible:ring-emerald-400"
+                  ? "bg-red-500 text-white hover:bg-red-400"
+                  : "bg-emerald-400 text-black hover:bg-emerald-300"
               } disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35`}
             >
               {primaryAction.icon}

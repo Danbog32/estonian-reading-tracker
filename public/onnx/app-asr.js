@@ -789,6 +789,7 @@ clearBtn.onclick = function () {
   window.dispatchEvent(translationClearEvent);
 
   // Reset the recognizer in the worker so it starts fresh
+  micSourceSamples = 0;
   if (asrWorker) {
     try {
       asrWorker.postMessage({ type: "reset" });
@@ -1265,6 +1266,13 @@ let asrWorkerInitialized = false;
 let vadWorker = null;
 let vadWorkerInitialized = false;
 const preferredLocalSegmentationMode = "vad";
+// Samples sent to the ASR worker since the last clear. Token times and the
+// pace predictor's voice flags both sit on this clock.
+let micSourceSamples = 0;
+
+function micSourceTimeSec() {
+  return micSourceSamples / 16000;
+}
 let localSegmentationMode = preferredLocalSegmentationMode;
 let localUtteranceCounter = 0;
 let vadActiveUtteranceId = null;
@@ -1293,7 +1301,10 @@ function scheduleVadSpeechEnd() {
     }
 
     try {
-      asrWorker?.postMessage({ type: "end_utterance" });
+      asrWorker?.postMessage({
+        type: "end_utterance",
+        sourceTimeSec: micSourceTimeSec(),
+      });
     } catch (_) {}
     vadActiveUtteranceId = null;
   }, VAD_END_GRACE_MS);
@@ -1307,7 +1318,10 @@ function finalizeActiveVadUtteranceImmediately() {
   }
 
   try {
-    asrWorker?.postMessage({ type: "force_finalize" });
+    asrWorker?.postMessage({
+      type: "force_finalize",
+      sourceTimeSec: micSourceTimeSec(),
+    });
   } catch (_) {}
   vadActiveUtteranceId = null;
 }
@@ -1458,6 +1472,7 @@ function setupVadWorker() {
           asrWorker?.postMessage({
             type: "begin_utterance",
             utteranceId: vadActiveUtteranceId,
+            sourceTimeSec: micSourceTimeSec(),
           });
         }
         return;
@@ -1625,21 +1640,29 @@ async function setupAudioGraph(stream) {
         }
       }
     } else if (asrWorkerInitialized && asrWorker && !usingSharedBuffer) {
+      micSourceSamples += samples.length;
+      const sourceTimeSec = micSourceTimeSec();
+      const asrSamples = new Float32Array(samples);
+      asrWorker.postMessage(
+        {
+          type: "audio",
+          samples: asrSamples,
+          sourceType: "microphone",
+          sourceTimeSec,
+        },
+        [asrSamples.buffer]
+      );
       if (localSegmentationMode === "vad" && vadWorkerInitialized && vadWorker) {
-        const asrSamples = new Float32Array(samples);
         const vadSamples = new Float32Array(samples);
-        asrWorker.postMessage({ type: "audio", samples: asrSamples }, [
-          asrSamples.buffer,
-        ]);
         vadWorker.postMessage({ type: "audio", samples: vadSamples }, [
           vadSamples.buffer,
         ]);
-      } else {
-        const workerSamples = new Float32Array(samples);
-        asrWorker.postMessage({ type: "audio", samples: workerSamples }, [
-          workerSamples.buffer,
-        ]);
       }
+      window.dispatchEvent(
+        new CustomEvent("micAudio", {
+          detail: { samples: new Float32Array(samples), sourceTimeSec },
+        })
+      );
     }
 
     renderTranscript();
