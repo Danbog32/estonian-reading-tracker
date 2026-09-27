@@ -2,7 +2,6 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight,
   ChevronDown,
   Mic,
   Pause,
@@ -79,7 +78,7 @@ const translations = {
     msPerLetter: "ms per letter",
     paceMeasuring: "Measuring...",
     paceUnavailable: "Unavailable, reload the page",
-    setupTitle: "Add the text that will be read",
+    setupTitle: "Text to read",
     editText: "Edit text",
     hideEditor: "Done",
     wordProgress: "Word",
@@ -88,13 +87,8 @@ const translations = {
     legendRead: "Already read",
     devTools: "Developer tools",
     paceShort: "Pace",
-    stepText: "Step 1",
-    stepSource: "Step 2",
     setupLead: "Paste what the reader will read aloud. Each word lights up as it is read.",
-    continueLabel: "Continue",
     changeText: "Change text",
-    micHint: "Read aloud into the microphone.",
-    fileHint: "Play a recording and follow along.",
     chooseFile: "Choose file",
     replaceFile: "Replace file",
     hintNeedText: "Add the text that will be read.",
@@ -151,7 +145,7 @@ const translations = {
     msPerLetter: "ms tähe kohta",
     paceMeasuring: "Mõõdan...",
     paceUnavailable: "Pole saadaval, laadi leht uuesti",
-    setupTitle: "Lisa tekst, mida loetakse",
+    setupTitle: "Loetav tekst",
     editText: "Muuda teksti",
     hideEditor: "Valmis",
     wordProgress: "Sõna",
@@ -160,13 +154,8 @@ const translations = {
     legendRead: "Juba loetud",
     devTools: "Arendaja tööriistad",
     paceShort: "Tempo",
-    stepText: "1. samm",
-    stepSource: "2. samm",
     setupLead: "Kleebi tekst, mida ette loetakse. Iga sõna süttib, kui see loetakse.",
-    continueLabel: "Edasi",
     changeText: "Muuda teksti",
-    micHint: "Loe mikrofoni ette.",
-    fileHint: "Esita salvestus ja jälgi teksti.",
     chooseFile: "Vali fail",
     replaceFile: "Vaheta fail",
     hintNeedText: "Lisa tekst, mida loetakse.",
@@ -506,6 +495,9 @@ export default function TextAlignmentClient() {
           ? t.hintRunning
           : t.hintReadyMic;
 
+  const ghostButton =
+    "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs font-medium text-white/60 transition duration-200 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70";
+
   return (
     <div
       className="flex min-h-dvh w-full flex-col"
@@ -513,216 +505,138 @@ export default function TextAlignmentClient() {
     >
       <AsrScriptBridge />
 
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-black/75 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-2.5 sm:px-6">
-          <div className="mr-auto min-w-0">
-            <h1 className="truncate text-[0.95rem] font-semibold tracking-[-0.01em]">
-              {t.title}
-            </h1>
-            <p
-              aria-live="polite"
-              className="flex items-center gap-1.5 truncate text-xs text-white/50"
-            >
-              <span
-                aria-hidden="true"
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                  isRecording || isPlaying
-                    ? "bg-emerald-400"
-                    : isModelReady || canPlay
-                      ? "bg-white/40"
-                      : "bg-amber-400/80"
-                }`}
-              />
-              {statusLabel}
-            </p>
-          </div>
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-4 sm:px-6 sm:py-6">
+        <header className="flex items-baseline justify-between gap-3 px-1 pb-3">
+          <h1 className="truncate text-sm font-semibold tracking-[-0.01em] text-white/90">
+            {t.title}
+          </h1>
+          <p
+            aria-live="polite"
+            className="flex shrink-0 items-center gap-1.5 text-xs text-white/50"
+          >
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 rounded-full ${
+                isRecording || isPlaying
+                  ? "bg-emerald-400"
+                  : isModelReady || canPlay
+                    ? "bg-white/40"
+                    : "bg-amber-400/80"
+              }`}
+            />
+            {statusLabel}
+          </p>
+        </header>
 
-          {!needsSetup && !showEditor && (
-            <>
-              <button
-                type="button"
-                onClick={() => setIsEditorOpen(true)}
-                aria-label={t.changeText}
-                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 text-xs font-medium text-white/70 transition duration-200 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{t.changeText}</span>
-              </button>
-
-              {hasSession && (
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  aria-label={t.clear}
-                  title={t.resetTitle}
-                  className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 text-xs font-medium text-white/70 transition duration-200 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t.clear}</span>
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </header>
-
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-6 pt-5 sm:px-6">
-        <section
-          aria-label={t.sourceLabel}
-          className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4"
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            <div
-              role="group"
-              aria-label={t.sourceLabel}
-              className="flex shrink-0 rounded-full border border-white/10 bg-black/30 p-1"
-            >
-              {(
-                [
-                  { key: "microphone", label: t.micMode, Icon: Mic },
-                  { key: "file", label: t.fileMode, Icon: Upload },
-                ] as const
-              ).map(({ key, label, Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={sourceMode === key}
-                  onClick={() => setSourceMode(key)}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
-                    sourceMode === key
-                      ? "bg-white text-black"
-                      : "text-white/60 hover:text-white"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {isFileMode && (
-              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-white/80 transition duration-200 hover:bg-white/[0.08] hover:text-white focus-within:ring-2 focus-within:ring-emerald-400/70">
-                <Upload className="h-4 w-4" />
-                {canPlay ? t.replaceFile : t.chooseFile}
-                <input
-                  type="file"
-                  accept="audio/*"
-                  className="sr-only"
-                  onChange={handleFileChange}
-                />
-              </label>
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition duration-200 focus-within:border-white/20">
+          <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 text-xs sm:px-4">
+            {showEditor ? (
+              <h2 className="pl-1 font-medium text-white/60">{t.setupTitle}</h2>
+            ) : (
+              <>
+                <span className="pl-1 tabular-nums text-white/50">
+                  {t.wordProgress}{" "}
+                  <span className="font-semibold text-white/85">
+                    {Math.min(highlightedWordIndex + 1, totalWords)}
+                  </span>
+                  <span className="text-white/35"> / {totalWords}</span>
+                </span>
+                {isPaceActive && (
+                  <span className="inline-flex items-center gap-3 text-white/55">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span aria-hidden="true" className="h-2.5 w-4 rounded bg-emerald-400" />
+                      {t.legendRecognised}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-4 rounded bg-emerald-400/20 ring-1 ring-emerald-300/60"
+                      />
+                      {t.legendPredicted}
+                    </span>
+                    <span className="tabular-nums">
+                      {t.paceShort}{" "}
+                      {fileController.isPaceAvailable === false ? (
+                        <span className="text-amber-200/90">{t.paceUnavailable}</span>
+                      ) : fileController.pace.paceSecPerUnit === null ? (
+                        t.paceMeasuring
+                      ) : (
+                        <>
+                          <span className="font-semibold text-white/90">
+                            {Math.round(fileController.pace.paceSecPerUnit * 1000)}
+                          </span>{" "}
+                          {t.msPerLetter}
+                        </>
+                      )}
+                    </span>
+                  </span>
+                )}
+              </>
             )}
 
-            <p className="order-last w-full text-xs text-white/50 sm:order-none sm:ml-auto sm:w-auto sm:text-right">
-              {actionHint}
-            </p>
-
-            <button
-              type="button"
-              onClick={startAction}
-              disabled={primaryAction.disabled || needsSetup}
-              className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
-                primaryAction.danger
-                  ? "bg-red-500 text-white hover:bg-red-400 focus-visible:ring-red-400"
-                  : "bg-emerald-400 text-black hover:bg-emerald-300 focus-visible:ring-emerald-400"
-              } disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35`}
-            >
-              {primaryAction.icon}
-              {primaryAction.label}
-            </button>
+            <div className="ml-auto flex items-center gap-1">
+              {showEditor ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setReferenceText(DEMO_TEXT)}
+                    className={ghostButton}
+                  >
+                    {t.useDemo}
+                  </button>
+                  {!needsSetup && hasSession && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditorOpen(false)}
+                      className={ghostButton}
+                    >
+                      {t.hideEditor}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  {hasSession && (
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      title={t.resetTitle}
+                      className={ghostButton}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      {t.clear}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsEditorOpen(true)}
+                    disabled={isRecording || isPlaying}
+                    className={`${ghostButton} disabled:pointer-events-none disabled:opacity-40`}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    {t.editText}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          {isFileMode && canPlay && (
-            <div className="mt-3 flex items-center gap-3 border-t border-white/10 pt-3">
-              <span className="min-w-0 flex-1 truncate text-xs text-white/50">
-                {fileController.modeState.fileName || t.noFile}
-              </span>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(fileController.modeState.durationSec || 0, 0.01)}
-                step={0.01}
-                value={fileController.modeState.currentTimeSec || 0}
-                onChange={(event) =>
-                  fileController.seek(Number(event.target.value))
-                }
-                aria-label={t.playbackTime}
-                className="h-1.5 w-full max-w-md cursor-pointer appearance-none rounded-full bg-white/15 accent-emerald-400 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+          {showEditor ? (
+            <>
+              <label htmlFor="reference-text" className="sr-only">
+                {t.referenceLabel}
+              </label>
+              <textarea
+                id="reference-text"
+                autoFocus
+                value={referenceText}
+                onChange={(event) => setReferenceText(event.target.value)}
+                placeholder={t.setupLead}
+                className="min-h-[40vh] w-full flex-1 resize-none bg-transparent px-4 pb-4 text-lg leading-relaxed outline-none placeholder:text-white/30 sm:px-5"
               />
-              <span className="shrink-0 tabular-nums text-xs text-white/50">
-                {formatSeconds(fileController.modeState.currentTimeSec)} /{" "}
-                {formatSeconds(fileController.modeState.durationSec)}
-              </span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={paceEnabled}
-                onClick={() => setPaceEnabled((value) => !value)}
-                className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
-                  paceEnabled
-                    ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-200"
-                    : "border-white/10 bg-white/[0.04] text-white/55 hover:text-white/85"
-                }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    paceEnabled ? "bg-emerald-300" : "bg-white/30"
-                  }`}
-                />
-                <span className="hidden sm:inline">{t.pacePrediction}</span>
-              </button>
-            </div>
-          )}
-
-          {fileController.modeState.errorMessage && (
-            <p role="alert" className="mt-2 text-sm text-red-300">
-              {fileController.modeState.errorMessage}
-            </p>
-          )}
-
-          <audio
-            ref={fileController.audioRef}
-            preload="metadata"
-            src={fileController.modeState.objectUrl || undefined}
-            className="hidden"
-          />
-        </section>
-
-        {showEditor ? (
-          <section className="mt-3 flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold">{t.setupTitle}</h2>
-                <p className="mt-0.5 text-xs text-white/50">{t.setupLead}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReferenceText(DEMO_TEXT)}
-                className="cursor-pointer rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-medium text-white/70 transition duration-200 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
-              >
-                {t.useDemo}
-              </button>
-            </div>
-
-            <label htmlFor="reference-text" className="sr-only">
-              {t.referenceLabel}
-            </label>
-            <textarea
-              id="reference-text"
-              autoFocus
-              value={referenceText}
-              onChange={(event) => setReferenceText(event.target.value)}
-              placeholder={t.alignmentPlaceholder}
-              className="mt-3 min-h-[38vh] w-full flex-1 resize-none rounded-xl border border-white/10 bg-black/30 p-4 text-[0.95rem] leading-relaxed outline-none transition duration-200 placeholder:text-white/30 focus:border-emerald-400/60 focus:ring-2 focus:ring-emerald-400/25"
-            />
-          </section>
-        ) : (
-          <section
-            aria-label={t.title}
-            className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02]"
-          >
-            <div className="flex min-h-[38vh] flex-1 items-center overflow-y-auto px-5 py-8 sm:px-10 sm:py-10">
+            </>
+          ) : (
+            <div className="flex min-h-[40vh] flex-1 items-center overflow-y-auto px-5 py-6 sm:px-10">
               <p className="mx-auto max-w-[56ch] text-[clamp(1.35rem,2.4vw,1.9rem)] font-medium leading-[1.8] tracking-[-0.01em]">
                 {referenceWords.map((word) => {
                   const isCurrent = word.index === highlightedWordIndex;
@@ -752,75 +666,149 @@ export default function TextAlignmentClient() {
                 })}
               </p>
             </div>
+          )}
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/10 bg-black/30 px-5 py-2.5 text-xs sm:px-10">
-              <span className="tabular-nums text-white/50">
-                {t.wordProgress}{" "}
-                <span className="font-semibold text-white/85">
-                  {Math.min(highlightedWordIndex + 1, totalWords)}
-                </span>
-                <span className="text-white/35"> / {totalWords}</span>
+          {isFileMode && canPlay && (
+            <div className="flex items-center gap-3 border-t border-white/10 px-4 py-2.5">
+              <span className="min-w-0 max-w-[30%] truncate text-xs text-white/50">
+                {fileController.modeState.fileName || t.noFile}
               </span>
-              <span className="inline-flex items-center gap-2 text-white/55">
+              <input
+                type="range"
+                min={0}
+                max={Math.max(fileController.modeState.durationSec || 0, 0.01)}
+                step={0.01}
+                value={fileController.modeState.currentTimeSec || 0}
+                onChange={(event) =>
+                  fileController.seek(Number(event.target.value))
+                }
+                aria-label={t.playbackTime}
+                className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-white/15 accent-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+              />
+              <span className="shrink-0 tabular-nums text-xs text-white/50">
+                {formatSeconds(fileController.modeState.currentTimeSec)} /{" "}
+                {formatSeconds(fileController.modeState.durationSec)}
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={paceEnabled}
+                onClick={() => setPaceEnabled((value) => !value)}
+                className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
+                  paceEnabled
+                    ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-200"
+                    : "border-white/10 text-white/55 hover:text-white/85"
+                }`}
+              >
                 <span
                   aria-hidden="true"
-                  className="h-3 w-5 rounded-md bg-emerald-400"
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    paceEnabled ? "bg-emerald-300" : "bg-white/30"
+                  }`}
                 />
-                {t.legendRecognised}
-              </span>
-              {isPaceActive && (
-                <span className="inline-flex items-center gap-2 text-white/55">
-                  <span
-                    aria-hidden="true"
-                    className="h-3 w-5 rounded-md bg-emerald-400/20 ring-1 ring-emerald-300/60"
-                  />
-                  {t.legendPredicted}
-                </span>
-              )}
-
-              {isPaceActive && (
-                <span className="ml-auto inline-flex items-center gap-2 tabular-nums text-white/55">
-                  {t.paceShort}
-                  {fileController.isPaceAvailable === false ? (
-                    <span className="font-medium text-amber-200/90">
-                      {t.paceUnavailable}
-                    </span>
-                  ) : fileController.pace.paceSecPerUnit === null ? (
-                    <span className="text-white/45">{t.paceMeasuring}</span>
-                  ) : (
-                    <span className="font-semibold text-white/90">
-                      {Math.round(fileController.pace.paceSecPerUnit * 1000)}
-                      <span className="ml-1 font-normal text-white/50">
-                        {t.msPerLetter}
-                      </span>
-                    </span>
-                  )}
-                </span>
-              )}
+                <span className="hidden sm:inline">{t.pacePrediction}</span>
+              </button>
             </div>
-          </section>
-        )}
+          )}
 
-        <details className="group mt-3 rounded-2xl border border-white/10 bg-white/[0.02]">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-xs font-medium text-white/45 transition duration-200 hover:text-white/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70">
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/10 bg-black/20 p-2.5 sm:p-3">
+            <div
+              role="group"
+              aria-label={t.sourceLabel}
+              className="flex shrink-0 rounded-full bg-white/[0.05] p-1"
+            >
+              {(
+                [
+                  { key: "microphone", label: t.micMode, Icon: Mic },
+                  { key: "file", label: t.fileMode, Icon: Upload },
+                ] as const
+              ).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={sourceMode === key}
+                  aria-label={label}
+                  title={label}
+                  onClick={() => setSourceMode(key)}
+                  className={`inline-flex h-8 cursor-pointer items-center gap-2 rounded-full px-3 text-xs font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
+                    sourceMode === key
+                      ? "bg-white text-black"
+                      : "text-white/55 hover:text-white"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {isFileMode && (
+              <label className={`${ghostButton} focus-within:ring-2 focus-within:ring-emerald-400/70`}>
+                <Upload className="h-3.5 w-3.5" />
+                {canPlay ? t.replaceFile : t.chooseFile}
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="sr-only"
+                  onChange={handleFileChange}
+                />
+              </label>
+            )}
+
+            <p className="ml-auto hidden text-right text-xs text-white/45 md:block">
+              {actionHint}
+            </p>
+
+            <button
+              type="button"
+              onClick={startAction}
+              disabled={primaryAction.disabled || needsSetup}
+              title={actionHint}
+              className={`ml-auto inline-flex h-10 cursor-pointer items-center gap-2 rounded-full px-5 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black md:ml-0 ${
+                primaryAction.danger
+                  ? "bg-red-500 text-white hover:bg-red-400 focus-visible:ring-red-400"
+                  : "bg-emerald-400 text-black hover:bg-emerald-300 focus-visible:ring-emerald-400"
+              } disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35`}
+            >
+              {primaryAction.icon}
+              {primaryAction.label}
+            </button>
+          </div>
+
+          {fileController.modeState.errorMessage && (
+            <p role="alert" className="border-t border-white/10 px-4 py-2 text-sm text-red-300">
+              {fileController.modeState.errorMessage}
+            </p>
+          )}
+
+          <audio
+            ref={fileController.audioRef}
+            preload="metadata"
+            src={fileController.modeState.objectUrl || undefined}
+            className="hidden"
+          />
+        </section>
+
+        <details className="group mt-3">
+          <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 px-1 text-xs text-white/35 transition duration-200 hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70">
             <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-180" />
             {t.devTools}
           </summary>
 
-          <div className="grid gap-3 border-t border-white/10 px-5 py-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+          <dl className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
               <dt className="text-xs text-white/45">{t.recentTranscript}</dt>
               <dd className="mt-1 break-words text-sm text-white/80">
                 {activeAlignment.recentTranscript || "—"}
               </dd>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
               <dt className="text-xs text-white/45">{t.matchedPhrase}</dt>
               <dd className="mt-1 break-words text-sm text-white/80">
                 {activeAlignment.matchedPhrase || "—"}
               </dd>
             </div>
-          </div>
+          </dl>
         </details>
       </main>
     </div>
