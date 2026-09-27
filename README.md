@@ -9,6 +9,11 @@ transcript with a pace-prediction layer that estimates the reader's speed and
 carries the highlight forward, which removes most of the delay inherent in
 waiting for the recogniser.
 
+## Demo
+
+[`docs/demo.mp4`](docs/demo.mp4) shows live microphone reading: the highlight follows
+the reader, runs ahead on predicted words, and waits during pauses.
+
 ## Running
 
 ```bash

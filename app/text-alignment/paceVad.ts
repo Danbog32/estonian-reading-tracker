@@ -7,7 +7,7 @@ export const ONNX_WORKER_VERSION = "2026-09-15";
 const SAMPLE_RATE = 16000;
 const VAD_INIT_TIMEOUT_MS = 20000;
 
-// Short silence so pauses between words register; EestiASR segments on 1.0 s.
+// Short silence so pauses between words register; utterance segmentation uses 1.1 s.
 const PACE_VAD_CONFIG = {
   emitVoiceFlags: true,
   sileroVad: { minSilenceDuration: 0.15, minSpeechDuration: 0.1 },
