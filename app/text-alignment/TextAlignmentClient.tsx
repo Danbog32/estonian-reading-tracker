@@ -69,13 +69,9 @@ const translations = {
     play: "Play",
     pause: "Pause",
     noFile: "No file selected",
-    pacePrediction: "Pace prediction",
-    paceOn: "On",
-    paceOff: "Off",
     paceHint:
       "A lighter highlight is a prediction the ASR has not confirmed yet.",
-    readingPace: "Reading pace",
-    msPerLetter: "ms per letter",
+    wordsPerMinute: "words per minute",
     paceMeasuring: "Measuring...",
     paceUnavailable: "Unavailable, reload the page",
     setupTitle: "Text to read",
@@ -86,7 +82,7 @@ const translations = {
     legendPredicted: "Predicted",
     legendRead: "Already read",
     devTools: "Developer tools",
-    paceShort: "Pace",
+    paceShort: "Speed",
     setupLead:
       "Paste what the reader will read aloud. Each word lights up as it is read.",
     changeText: "Change text",
@@ -138,12 +134,7 @@ const translations = {
     play: "Esita",
     pause: "Paus",
     noFile: "Fail puudub",
-    pacePrediction: "Tempo ennustus",
-    paceOn: "Sees",
-    paceOff: "Väljas",
-    paceHint: "Heledam esiletõst on ennustus, mida ASR pole veel kinnitanud.",
-    readingPace: "Lugemistempo",
-    msPerLetter: "ms tähe kohta",
+    wordsPerMinute: "sõna minutis",
     paceMeasuring: "Mõõdan...",
     paceUnavailable: "Pole saadaval, laadi leht uuesti",
     setupTitle: "Loetav tekst",
@@ -154,7 +145,7 @@ const translations = {
     legendPredicted: "Ennustatud",
     legendRead: "Juba loetud",
     devTools: "Arendaja tööriistad",
-    paceShort: "Tempo",
+    paceShort: "Kiirus",
     setupLead:
       "Kleebi tekst, mida ette loetakse. Iga sõna süttib, kui see loetakse.",
     changeText: "Muuda teksti",
@@ -187,24 +178,11 @@ function formatSeconds(value: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-function downloadJson(fileName: string, value: unknown) {
-  const blob = new Blob([`${JSON.stringify(value, null, 2)}\n`], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 export default function TextAlignmentClient() {
   const { backgroundColor, textColor, language } = useSettings();
   const t = translations[language] ?? translations.en;
 
   const [sourceMode, setSourceMode] = useState<SourceMode>("microphone");
-  const [paceEnabled, setPaceEnabled] = useState(true);
   const [isModelReady, setIsModelReady] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(true);
@@ -221,14 +199,7 @@ export default function TextAlignmentClient() {
   const [micAlignment, setMicAlignment] = useState(
     INITIAL_TIMING_AWARE_ALIGNMENT_STATE,
   );
-  const latestAlignmentRef = useRef(INITIAL_TIMING_AWARE_ALIGNMENT_STATE);
-  const latestHighlightRef = useRef({
-    wordIndex: 0,
-    paceEnabled: false,
-    paceSecPerLetter: null as number | null,
-  });
   const micAsrReceivedAtRef = useRef(Date.now());
-  const latestAsrTextRef = useRef("");
 
   const referenceWords = useMemo(
     () => parseReferenceText(referenceText),
@@ -343,25 +314,13 @@ export default function TextAlignmentClient() {
 
   const activeAlignment =
     sourceMode === "file" ? fileController.alignment : micAlignment;
-  const activeAsrEvent =
-    sourceMode === "file"
-      ? (fileController.detail.asr ?? { type: "idle" })
-      : micAsrEvent;
-
-  const activeAsrText =
-    activeAsrEvent.normalizedText ||
-    activeAsrEvent.partialText ||
-    activeAsrEvent.finalText ||
-    "";
-
   const micPace = useMicPacePredictor({
     referenceWords,
     alignment: micAlignment,
     asrEvent: micAsrEvent,
     isRecording,
-    enabled: sourceMode === "microphone" && paceEnabled,
+    enabled: sourceMode === "microphone",
   });
-  const isPaceActive = paceEnabled;
   const activePace = sourceMode === "file" ? fileController.pace : micPace.pace;
   const isActivePaceAvailable =
     sourceMode === "file"
@@ -369,11 +328,11 @@ export default function TextAlignmentClient() {
       : micPace.isPaceAvailable;
   // The matcher points past the text once the last word matches; keep that word lit.
   const highlightedWordIndex = Math.min(
-    isPaceActive ? activePace.predictedIndex : activeAlignment.currentWordIndex,
+    activePace.predictedIndex,
     Math.max(referenceWords.length - 1, 0),
   );
   const isPredictedAhead =
-    isPaceActive && highlightedWordIndex > activeAlignment.currentWordIndex;
+    highlightedWordIndex > activeAlignment.currentWordIndex;
 
   // Keep the word being read in view without the reader chasing it.
   useEffect(() => {
@@ -388,13 +347,35 @@ export default function TextAlignmentClient() {
     });
   }, [highlightedWordIndex]);
 
-  latestAlignmentRef.current = activeAlignment;
-  latestHighlightRef.current = {
-    wordIndex: highlightedWordIndex,
-    paceEnabled: isPaceActive,
-    paceSecPerLetter: activePace.paceSecPerUnit,
-  };
-  latestAsrTextRef.current = activeAsrText;
+  // Reading speed counts pauses too: confirmed words over the time since the
+  // first confirmed word began, both on the audio clock.
+  const readingStartRef = useRef<{ index: number; onsetSec: number } | null>(
+    null,
+  );
+  if (activePace.anchorIndex < 0 || activePace.anchorOnsetSec === null) {
+    readingStartRef.current = null;
+  } else if (
+    !readingStartRef.current ||
+    activePace.anchorIndex < readingStartRef.current.index
+  ) {
+    readingStartRef.current = {
+      index: activePace.anchorIndex,
+      onsetSec: activePace.anchorOnsetSec,
+    };
+  }
+  const readingStart = readingStartRef.current;
+  const wordsRead = readingStart
+    ? activePace.anchorIndex - readingStart.index
+    : 0;
+  const readingSec =
+    readingStart && activePace.anchorOnsetSec !== null
+      ? activePace.anchorOnsetSec - readingStart.onsetSec
+      : 0;
+  const wordsPerMinute =
+    wordsRead >= 3 && readingSec >= 2
+      ? Math.round((wordsRead * 60) / readingSec)
+      : null;
+
   const fileStatusLabel =
     fileController.modeState.status === "decoding"
       ? t.fileDecoding
@@ -556,41 +537,39 @@ export default function TextAlignmentClient() {
                   </span>
                   <span className="text-white/35"> / {totalWords}</span>
                 </span>
-                {isPaceActive && (
-                  <span className="inline-flex items-center gap-3 text-white/55">
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        aria-hidden="true"
-                        className="h-2.5 w-4 rounded bg-emerald-400"
-                      />
-                      {t.legendRecognised}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        aria-hidden="true"
-                        className="h-2.5 w-4 rounded bg-emerald-400/20 ring-1 ring-emerald-300/60"
-                      />
-                      {t.legendPredicted}
-                    </span>
-                    <span className="tabular-nums">
-                      {t.paceShort}{" "}
-                      {isActivePaceAvailable === false ? (
-                        <span className="text-amber-200/90">
-                          {t.paceUnavailable}
-                        </span>
-                      ) : activePace.paceSecPerUnit === null ? (
-                        t.paceMeasuring
-                      ) : (
-                        <>
-                          <span className="font-semibold text-white/90">
-                            {Math.round(activePace.paceSecPerUnit * 1000)}
-                          </span>{" "}
-                          {t.msPerLetter}
-                        </>
-                      )}
-                    </span>
+                <span className="inline-flex items-center gap-3 text-white/55">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      aria-hidden="true"
+                      className="h-2.5 w-4 rounded bg-emerald-400"
+                    />
+                    {t.legendRecognised}
                   </span>
-                )}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      aria-hidden="true"
+                      className="h-2.5 w-4 rounded bg-emerald-400/20 ring-1 ring-emerald-300/60"
+                    />
+                    {t.legendPredicted}
+                  </span>
+                  <span className="tabular-nums">
+                    {t.paceShort}{" "}
+                    {isActivePaceAvailable === false ? (
+                      <span className="text-amber-200/90">
+                        {t.paceUnavailable}
+                      </span>
+                    ) : wordsPerMinute === null ? (
+                      t.paceMeasuring
+                    ) : (
+                      <>
+                        <span className="font-semibold text-white/90">
+                          {wordsPerMinute}
+                        </span>{" "}
+                        {t.wordsPerMinute}
+                      </>
+                    )}
+                  </span>
+                </span>
               </>
             )}
 

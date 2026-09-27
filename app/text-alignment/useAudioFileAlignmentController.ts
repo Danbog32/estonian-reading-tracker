@@ -13,7 +13,7 @@ import {
   predictReadingPosition,
 } from "./pacePredictor";
 import type { PacePredictorState } from "./pacePredictor";
-import type { AsrEventPayload, TranscriptBlock, TranscriptUpdateDetail } from "./types";
+import type { TranscriptBlock, TranscriptUpdateDetail } from "./types";
 import { createPaceVad, ONNX_WORKER_VERSION } from "./paceVad";
 import type { PaceVad } from "./paceVad";
 
