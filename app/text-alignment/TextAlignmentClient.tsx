@@ -13,9 +13,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "../providers/SettingsContext";
 import AsrScriptBridge from "../components/AsrScriptBridge";
-import {
-  parseReferenceText,
-} from "./alignment";
+import { parseReferenceText } from "./alignment";
 import {
   alignTranscriptWithTiming,
   INITIAL_TIMING_AWARE_ALIGNMENT_STATE,
@@ -74,7 +72,8 @@ const translations = {
     pacePrediction: "Pace prediction",
     paceOn: "On",
     paceOff: "Off",
-    paceHint: "A lighter highlight is a prediction the ASR has not confirmed yet.",
+    paceHint:
+      "A lighter highlight is a prediction the ASR has not confirmed yet.",
     readingPace: "Reading pace",
     msPerLetter: "ms per letter",
     paceMeasuring: "Measuring...",
@@ -88,7 +87,8 @@ const translations = {
     legendRead: "Already read",
     devTools: "Developer tools",
     paceShort: "Pace",
-    setupLead: "Paste what the reader will read aloud. Each word lights up as it is read.",
+    setupLead:
+      "Paste what the reader will read aloud. Each word lights up as it is read.",
     changeText: "Change text",
     chooseFile: "Choose file",
     replaceFile: "Replace file",
@@ -155,7 +155,8 @@ const translations = {
     legendRead: "Juba loetud",
     devTools: "Arendaja tööriistad",
     paceShort: "Tempo",
-    setupLead: "Kleebi tekst, mida ette loetakse. Iga sõna süttib, kui see loetakse.",
+    setupLead:
+      "Kleebi tekst, mida ette loetakse. Iga sõna süttib, kui see loetakse.",
     changeText: "Muuda teksti",
     chooseFile: "Vali fail",
     replaceFile: "Vaheta fail",
@@ -363,7 +364,9 @@ export default function TextAlignmentClient() {
   const isPaceActive = paceEnabled;
   const activePace = sourceMode === "file" ? fileController.pace : micPace.pace;
   const isActivePaceAvailable =
-    sourceMode === "file" ? fileController.isPaceAvailable : micPace.isPaceAvailable;
+    sourceMode === "file"
+      ? fileController.isPaceAvailable
+      : micPace.isPaceAvailable;
   // The matcher points past the text once the last word matches; keep that word lit.
   const highlightedWordIndex = Math.min(
     isPaceActive ? activePace.predictedIndex : activeAlignment.currentWordIndex,
@@ -459,7 +462,8 @@ export default function TextAlignmentClient() {
 
   const primaryAction = isFileMode
     ? {
-        onClick: () => (isPlaying ? fileController.pause() : fileController.play()),
+        onClick: () =>
+          isPlaying ? fileController.pause() : fileController.play(),
         disabled: !canPlay,
         icon: isPlaying ? (
           <Pause className="h-4 w-4" />
@@ -495,7 +499,7 @@ export default function TextAlignmentClient() {
   const actionHint = needsSetup
     ? t.hintNeedText
     : isFileMode
-    ? !canPlay
+      ? !canPlay
         ? t.hintNeedFile
         : isPlaying
           ? t.hintRunning
@@ -555,7 +559,10 @@ export default function TextAlignmentClient() {
                 {isPaceActive && (
                   <span className="inline-flex items-center gap-3 text-white/55">
                     <span className="inline-flex items-center gap-1.5">
-                      <span aria-hidden="true" className="h-2.5 w-4 rounded bg-emerald-400" />
+                      <span
+                        aria-hidden="true"
+                        className="h-2.5 w-4 rounded bg-emerald-400"
+                      />
                       {t.legendRecognised}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
@@ -568,7 +575,9 @@ export default function TextAlignmentClient() {
                     <span className="tabular-nums">
                       {t.paceShort}{" "}
                       {isActivePaceAvailable === false ? (
-                        <span className="text-amber-200/90">{t.paceUnavailable}</span>
+                        <span className="text-amber-200/90">
+                          {t.paceUnavailable}
+                        </span>
                       ) : activePace.paceSecPerUnit === null ? (
                         t.paceMeasuring
                       ) : (
@@ -735,7 +744,9 @@ export default function TextAlignmentClient() {
             </div>
 
             {isFileMode && (
-              <label className={`${ghostButton} focus-within:ring-2 focus-within:ring-emerald-400/70`}>
+              <label
+                className={`${ghostButton} focus-within:ring-2 focus-within:ring-emerald-400/70`}
+              >
                 <Upload className="h-3.5 w-3.5" />
                 {canPlay ? t.replaceFile : t.chooseFile}
                 <input
@@ -746,27 +757,6 @@ export default function TextAlignmentClient() {
                 />
               </label>
             )}
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={paceEnabled}
-              onClick={() => setPaceEnabled((value) => !value)}
-              title={t.pacePrediction}
-              className={`inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 ${
-                paceEnabled
-                  ? "border-emerald-400/60 bg-emerald-400/15 text-emerald-200"
-                  : "border-white/10 text-white/55 hover:text-white/85"
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className={`h-1.5 w-1.5 rounded-full ${
-                  paceEnabled ? "bg-emerald-300" : "bg-white/30"
-                }`}
-              />
-              {t.paceShort}
-            </button>
 
             <p className="ml-auto mr-3 hidden text-right text-xs text-white/45 md:block">
               {actionHint}
@@ -789,7 +779,10 @@ export default function TextAlignmentClient() {
           </div>
 
           {fileController.modeState.errorMessage && (
-            <p role="alert" className="border-t border-white/10 px-4 py-2 text-sm text-red-300">
+            <p
+              role="alert"
+              className="border-t border-white/10 px-4 py-2 text-sm text-red-300"
+            >
               {fileController.modeState.errorMessage}
             </p>
           )}
