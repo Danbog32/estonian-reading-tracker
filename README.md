@@ -9,10 +9,16 @@ transcript with a pace-prediction layer that estimates the reader's speed and
 carries the highlight forward, which removes most of the delay inherent in
 waiting for the recogniser.
 
+![Reading view during live microphone input](docs/interface.png)
+
 ## Demo
 
-[`docs/demo.mp4`](docs/demo.mp4) shows live microphone reading: the highlight follows
-the reader, runs ahead on predicted words, and waits during pauses.
+[![Demo: live microphone reading](docs/demo.gif)](https://cdn.jsdelivr.net/gh/Danbog32/estonian-reading-tracker@main/docs/demo.mp4)
+
+The demo shows live microphone reading: the highlight follows the reader, runs
+ahead on predicted words, and waits during pauses.
+[Watch the full video with sound](https://cdn.jsdelivr.net/gh/Danbog32/estonian-reading-tracker@main/docs/demo.mp4)
+or [download it](docs/demo.mp4).
 
 ## Running
 
